@@ -188,13 +188,19 @@ class GUI:
 
     def populate_file_name_entry(self):
         global experiment_name
+        global counter
         today = date.today()
         curr_date = today.strftime("%y%m%d")
-        global counter
         if not self.file_name_entry.get():
+            print("Inside if not")
+            default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
+            self.file_name_entry.insert(0, default_file_name)  # Insert default file name
+            counter+=1
+        else:
             default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
             self.file_name_entry.delete(0, tk.END)  # Clear existing content
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
+            counter+=1
 
     def save_image(self):
         ret = False
@@ -202,11 +208,11 @@ class GUI:
             frame = self.captured_frame
             ret = True
         global experiment_name
+        global counter
         today = date.today()
         curr_date = today.strftime("%y%m%d")
         if ret:        
             global file_name
-            global counter
             user = getpass.getuser()
             if platform.system() == "Windows":
                 filePath = f"C:/{user}/{folder_path}"
@@ -220,7 +226,6 @@ class GUI:
             cv2.imwrite(os.path.join(filePath, file_name), frame)
             print(f"Captured image saved as {file_name} at {filePath}")
             self.label_name.configure(text=f"{file_name} at {filePath}")
-            counter += 1
 
     def save_iso_ss(self):
         global shutter_speed
@@ -232,56 +237,59 @@ class GUI:
 
     ################################### RPi CAMERA ##################################        
 
-    def connect_to_raspberry_pi(self):
-        global shutter_speed
-        global iso
-        ip = self.ip_entry.get() #200.10.10.2
-        user = self.user_entry.get() #pi
-        password = self.pass_entry.get() #nanotube
-        print("Connecting to Raspberry Pi")
-        try:
-            self.ssh_client = paramiko.SSHClient()
-            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self.ssh_client.connect(ip, username=user, password=password)
-            print("Connected to Raspberry Pi")
-            self.start_raspberry_pi_camera_stream(ip, user, password, shutter_speed, iso)
-        except Exception as e:
-            print(f"Failed to connect to Raspberry Pi: {e}")
+    # def connect_to_raspberry_pi(self):
+    #     global shutter_speed
+    #     global iso
+    #     ip = self.ip_entry.get() #200.10.10.2
+    #     user = self.user_entry.get() #pi
+    #     password = self.pass_entry.get() #nanotube
+    #     print("Connecting to Raspberry Pi")
+    #     try:
+    #         self.ssh_client = paramiko.SSHClient()
+    #         self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    #         self.ssh_client.connect(ip, username=user, password=password)
+    #         print("Connected to Raspberry Pi")
+    #         self.start_raspberry_pi_camera_stream(ip, user, password, shutter_speed, iso)
+    #     except Exception as e:
+    #         print(f"Failed to connect to Raspberry Pi: {e}")
 
-    def start_raspberry_pi_camera_stream(self, ip, user, password, shutter_speed, iso):
-        self.running = True
-        self.video_label.configure(width=400, height=400)
-        threading.Thread(target=self.update_raspberry_pi_frame, args=(ip, user, password, shutter_speed, iso)).start()
+    # def start_raspberry_pi_camera_stream(self, ip, user, password, shutter_speed, iso):
+    #     self.running = True
+    #     self.video_label.configure(width=400, height=400)
+    #     threading.Thread(target=self.update_raspberry_pi_frame, args=(ip, user, password, shutter_speed, iso)).start()
 
-    def update_raspberry_pi_frame(self, ip, user, password, shutter_speed, iso):
-        while self.running:
-            try:
-                ssh_command = f"raspivid -t 0 -o - -ss {shutter_speed} -ISO {iso} | nc -l -p 2222 2>/dev/null"
-                #ssh_command = f"raspivid -t 0 -o - -ss {shutter_speed} -ISO {iso} -w 640 -h 480 -fps 30 -b 1000000 | nc -l -u -p 2222 2>/dev/null"
+    # def update_raspberry_pi_frame(self, ip, user, password, shutter_speed, iso):
+    #     while self.running:
+    #         try:
+    #             ssh_command = f"raspivid -t 0 -o - -ss {shutter_speed} -ISO {iso} | nc -l -p 2222 2>/dev/null"
+    #             #ssh_command = f"raspivid -t 0 -o - -ss {shutter_speed} -ISO {iso} -w 640 -h 480 -fps 30 -b 1000000 | nc -l -u -p 2222 2>/dev/null"
 
-                self.ssh_client.exec_command(ssh_command)
-                time.sleep(2)
-                self.cap = cv2.VideoCapture(f"tcp://{ip}:22")
-                #self.cap = cv2.VideoCapture(f"udp://{ip}:22")
+    #             self.ssh_client.exec_command(ssh_command)
+    #             time.sleep(2)
+    #             self.cap = cv2.VideoCapture(f"tcp://{ip}:22")
+    #             #self.cap = cv2.VideoCapture(f"udp://{ip}:22")
 
-                print("Connected to RPi Camera")
-                while self.cap.isOpened() and self.running:
-                    ret, frame = self.cap.read()
-                    if ret:
-                        # cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        # img = Image.fromarray(cv2image)
-                        # imgtk = ImageTk.PhotoImage(image=img)
-                        # self.video_label.imgtk = imgtk
-                        # self.video_label.configure(image=imgtk)
-                        self.video_label.imgtk = frame
-                        self.video_label.configure(image=self.video_label.imgtk)
-                        #fft_app = FFTApp(frame, self.fft_label)
-                        #fft_app.start()
-                    else:
-                        break
-            except Exception as e:
-                print(f"Failed to update frame from Raspberry Pi Camera: {e}")
-                break
+    #             print("Connected to RPi Camera")
+    #             while self.cap.isOpened() and self.running:
+    #                 ret, frame = self.cap.read()
+    #                 if ret:
+    #                     # cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    #                     # img = Image.fromarray(cv2image)
+    #                     # imgtk = ImageTk.PhotoImage(image=img)
+    #                     # self.video_label.imgtk = imgtk
+    #                     # self.video_label.configure(image=imgtk)
+    #                     self.video_label.imgtk = frame
+    #                     self.video_label.configure(image=self.video_label.imgtk)
+    #                     #fft_app = FFTApp(frame, self.fft_label)
+    #                     #fft_app.start()
+    #                 else:
+    #                     break
+    #         except Exception as e:
+    #             print(f"Failed to update frame from Raspberry Pi Camera: {e}")
+    #             break
+
+###################################################################################################
+
 
     # def connect_to_raspberry_pi(self):
     #     global shutter_speed
@@ -329,7 +337,8 @@ class GUI:
     #             except Exception as e:
     #                 print(f"Failed to update frame from Raspberry Pi Camera: {e}")
     #                 break
-
+    
+		###############################################################################################
     def connect_to_raspberry_pi(self):
         global shutter_speed
         global iso
@@ -348,47 +357,46 @@ class GUI:
 
     def start_raspberry_pi_camera_stream(self, ip, user, password, shutter_speed, iso):
         self.running = True
-        self.video_label.configure(width=640, height=480)
-        self.update_raspberry_pi_frame(ip, user, password, shutter_speed, iso)
+        self.video_label.configure(width=400, height=400)
+        threading.Thread(target=self.update_raspberry_pi_frame, args=(ip, user, password, shutter_speed, iso)).start()
 
     def update_raspberry_pi_frame(self, ip, user, password, shutter_speed, iso):
         try:
-            self.local_ip = '0.0.0.0'  # Accept connections on all interfaces
-            self.local_port = 2222  # Port to use for streaming
-            ssh_command = f"raspivid -t 0 -o - -ss {shutter_speed} -ISO {iso} | nc {self.local_ip} {self.local_port}"
-
+            local_ip = '0.0.0.0'
+            local_port = 2222
+            ssh_command = f"raspivid -t 0 -o - -ss {shutter_speed} -ISO {iso} | nc {local_ip} {local_port}"
+            
             stdin, stdout, stderr = self.ssh_client.exec_command(ssh_command)
             time.sleep(2)
-
-            self.cap = cv2.VideoCapture(f"tcp://{self.local_ip}:{self.local_port}")
-            if self.cap.isOpened():
-                print("Connected to RPi Camera")
-            else:
-                print("Not connected to RPi Camera")
-                self.video_label.configure(width=640, height=480)
+            
+            # Ensure the server is running on the specified port
+            self.cap = cv2.VideoCapture(f"tcp://{ip}:{local_port}")
+            if not self.cap.isOpened():
+                print("Failed to open capture device")
                 return
-
+            
+            print("Connected to RPi Camera")
             while self.cap.isOpened() and self.running:
                 ret, frame = self.cap.read()
                 if ret:
-                    cv2_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
-                    img = Image.fromarray(cv2_image)
+                    cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+                    img = Image.fromarray(cv2image)
                     imgtk = ImageTk.PhotoImage(image=img)
                     self.video_label.imgtk = imgtk
                     self.video_label.configure(image=imgtk)
                 else:
                     break
-                self.root.update_idletasks()
-                self.root.update()
 
         except Exception as e:
             print(f"Failed to update frame from Raspberry Pi Camera: {e}")
-            return
 
         finally:
-            self.cap.release()
-            self.ssh_client.close()
+            if self.cap:
+                self.cap.release()
+            if self.ssh_client:
+                self.ssh_client.close()
             print("SSH session closed")
+
 
     def close(self):
         self.running = False
