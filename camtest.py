@@ -1,107 +1,81 @@
 import paramiko
-import urllib.request
+from threading import Thread
+import socket
 import cv2
-import numpy as np
-import tkinter as tk
-from tkinter import Label
+from tkinter import *
 from PIL import Image, ImageTk
+import numpy as np
 
-class MJPEGStreamer:
-    def __init__(self, root, stream_url):
-        self.root = root
-        self.stream_url = stream_url
-        self.video_label = Label(root)
+class RPiCameraStream:
+    def __init__(self, master):
+        self.master = master
+        self.video_label = Label(master)
         self.video_label.pack()
-        self.update_frame()
+        self.running = False
+        self.ssh_client = None
+        self.ip_entry = Entry(master)
+        self.user_entry = Entry(master)
+        self.pass_entry = Entry(master)
 
-    def update_frame(self):
+        self.shutter_speed = 0  # Set default shutter speed
+        self.iso = 0  # Set default ISO
+
+    def connect_to_raspberry_pi(self):
+        global shutter_speed
+        global iso
+        local_ip = socket.gethostname()
+        ip = self.ip_entry.get()  # e.g., 200.10.10.2
+        user = self.user_entry.get()  # e.g., pi
+        password = self.pass_entry.get()  # e.g., nanotube
+        print("Connecting to Raspberry Pi")
         try:
-            with urllib.request.urlopen(self.stream_url) as stream:
-                byte_arr = bytearray()
-                while True:
-                    byte_arr.extend(stream.read(1024))
-                    start_idx = byte_arr.find(b'\xff\xd8')  # JPEG start
-                    end_idx = byte_arr.find(b'\xff\xd9')  # JPEG end
-                    if start_idx != -1 and end_idx != -1:
-                        jpg = byte_arr[start_idx:end_idx+2]
-                        byte_arr = byte_arr[end_idx+2:]
-                        image = np.asarray(bytearray(jpg), dtype="uint8")
-                        frame = cv2.imdecode(image, cv2.IMREAD_COLOR)
-                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        img = Image.fromarray(frame)
-                        imgtk = ImageTk.PhotoImage(image=img)
-                        self.video_label.imgtk = imgtk
-                        self.video_label.configure(image=imgtk)
-                        break
-            self.root.after(10, self.update_frame)
-        except Exception as e:
-            print(f"Failed to update frame: {e}")
-            self.root.after(1000, self.update_frame)
-
-class RaspberryPiController:
-    def __init__(self, ip, user, password):
-        self.ip = ip
-        self.user = user
-        self.password = password
-        self.ssh_client = paramiko.SSHClient()
-        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.connect()
-
-    def connect(self):
-        try:
-            self.ssh_client.connect(self.ip, username=self.user, password=self.password)
+            self.ssh_client = paramiko.SSHClient()
+            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            self.ssh_client.connect(ip, username=user, password=password)
             print("Connected to Raspberry Pi")
+            self.start_raspberry_pi_camera_stream(ip, local_ip, user, password)
         except Exception as e:
             print(f"Failed to connect to Raspberry Pi: {e}")
 
-    def install_mjpeg_streamer(self):
-        try:
-            commands = [
-                "sudo apt-get update",
-                "sudo apt-get install -y cmake libjpeg8-dev",
-                "git clone https://github.com/jacksonliam/mjpg-streamer.git",
-                "cd mjpg-streamer/mjpg-streamer-experimental && make",
-                "sudo make install"
-            ]
-            for command in commands:
-                stdin, stdout, stderr = self.ssh_client.exec_command(command)
-                for line in stdout:
-                    print(f"STDOUT: {line.strip()}")
-                for line in stderr:
-                    print(f"STDERR: {line.strip()}")
-            print("Installed mjpeg-streamer on Raspberry Pi")
-        except Exception as e:
-            print(f"Failed to install mjpeg-streamer: {e}")
+    def start_raspberry_pi_camera_stream(self, ip, local_ip, user, password):
+        self.running = True
+        self.video_label.configure(width=400, height=400)
+        Thread(target=self.update_raspberry_pi_frame).start()
 
-    def start_mjpeg_streamer(self):
+        # Start the streaming script on the Raspberry Pi
         try:
-            command = "cd mjpg-streamer/mjpg-streamer-experimental && ./mjpg_streamer -i \"./input_raspicam.so\" -o \"./output_http.so -w ./www -p 8080\""
-            stdin, stdout, stderr = self.ssh_client.exec_command(command)
-            for line in stdout:
-                print(f"STDOUT: {line.strip()}")
-            for line in stderr:
-                print(f"STDERR: {line.strip()}")
-            print("Started mjpeg-streamer on Raspberry Pi")
+            ssh_command = f"python3 /home/pi/stream.py --ipaddr {local_ip}"
+            self.ssh_client.exec_command(ssh_command)
         except Exception as e:
-            print(f"Failed to start mjpeg-streamer: {e}")
+            print(f"Failed to start streaming script on Raspberry Pi: {e}")
 
-    def close(self):
-        if self.ssh_client:
-            self.ssh_client.close()
-            print("SSH session closed")
+    def update_raspberry_pi_frame(self):
+        # Set up UDP socket to receive the stream
+        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_socket.bind(('', 2222))
+
+        while self.running:
+            try:
+                # Receive data from the socket
+                data, _ = udp_socket.recvfrom(65536)
+                # Convert the data to a numpy array
+                np_data = np.frombuffer(data, dtype=np.uint8)
+                # Decode the image
+                frame = cv2.imdecode(np_data, cv2.IMREAD_COLOR)
+
+                if frame is not None:
+                    # Convert the frame to ImageTk format
+                    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    image = Image.fromarray(image)
+                    imgtk = ImageTk.PhotoImage(image=image)
+                    self.video_label.imgtk = imgtk
+                    self.video_label.configure(image=imgtk)
+
+            except Exception as e:
+                print(f"Failed to update frame from Raspberry Pi Camera: {e}")
+                break
 
 if __name__ == "__main__":
-    pi_ip = "200.10.10.2"  # Replace with your Raspberry Pi IP address
-    pi_user = "pi"  # Replace with your Raspberry Pi username
-    pi_password = "nanotube"  # Replace with your Raspberry Pi password
-    stream_url = f"http://{pi_ip}:8080/?action=stream"
-
-    root = tk.Tk()
-    app = MJPEGStreamer(root, stream_url)
-
-    pi_controller = RaspberryPiController(pi_ip, pi_user, pi_password)
-    pi_controller.install_mjpeg_streamer()
-    pi_controller.start_mjpeg_streamer()
-
+    root = Tk()
+    app = RPiCameraStream(root)
     root.mainloop()
-    pi_controller.close()
