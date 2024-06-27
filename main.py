@@ -22,6 +22,8 @@ shutter_speed = 0
 iso = 0
 experiment_name = "Hi"
 folder_path = "Downloads/AFRL_RX_GUI"
+imgtk = ""
+captimg = ""
 
 class GUI:
 
@@ -39,7 +41,6 @@ class GUI:
         self.root.grid_rowconfigure(1, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=2)
-       # self.root.grid_columnconfigure(2, weight=2)
 
         # VIDEO FRAME
         self.video_frame = ttk.LabelFrame(root, text="Video Stream")
@@ -51,18 +52,6 @@ class GUI:
         self.video_thread = None
 
         # FILE AND INFO
-        # self.label_frame = ttk.LabelFrame(root, text="Info")
-        # self.label_frame.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
-        # self.label_frame.grid_rowconfigure(4, weight=1)
-        # self.label_frame.grid_columnconfigure(0, weight=1)
-        # self.label_user = tk.Label(self.label_frame, text=f"User: {user1}")
-        # self.label_user.grid(row=0, column=0, pady=10, padx=10, sticky="nsew")
-        # self.label_system = tk.Label(self.label_frame, text=f"System: {system1}")
-        # self.label_system.grid(row=1, column=0, pady=10, padx=10, sticky="nsew")
-        # self.label_text = tk.Label(self.label_frame, text="Label of File")
-        # self.label_text.grid(row=2, column=0, pady=10, padx=10, sticky="nsew")
-        # self.label_name = tk.Label(self.label_frame, text="")
-        # self.label_name.grid(row=3, column=0, pady=10, padx=10, sticky="nsew")
 
         self.label_frame = ttk.LabelFrame(root, text="Info")
         self.label_frame.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
@@ -78,8 +67,6 @@ class GUI:
         self.file_name_entry.grid(row=2, column=0, pady=10, padx=10, sticky="nsew")
         self.save_button2 = tk.Button(self.label_frame, text="Save", command=self.save_image)
         self.save_button2.grid(row=3, column=0, padx=5, pady=5, sticky="nsew")
-
-        # IMAGE CONTROL
 
         # IMAGE CONTROL
         self.control_frame = ttk.LabelFrame(root, text="Image Control")
@@ -144,6 +131,7 @@ class GUI:
         self.running = False
         self.captured_frame = None
 
+
     ################################### MANUAL CAMERA ##################################
 
     def start_preview(self):  # For manual use only
@@ -176,17 +164,14 @@ class GUI:
             self.root.after(10, self.update_frame)
 
     def capture_image(self):
-        if self.cap and self.cap.isOpened():
-            ret, frame = self.cap.read()
-            if ret:
-                self.captured_frame = frame
-                self.populate_file_name_entry()
-                self.video_capt_label.configure(width=400, height=400)
-                cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(cv2image)
-                imgtk = ImageTk.PhotoImage(image=img)
-                self.video_capt_label.imgtk = imgtk
-                self.video_capt_label.configure(image=imgtk)
+        global captimg
+        global imgtk
+        if self.running:
+            self.video_capt_label.configure(width=400, height=400)
+            self.populate_file_name_entry()
+            self.video_capt_label.imgtk = imgtk
+            self.video_capt_label.configure(image=imgtk)
+            captimg = imgtk
 
     def populate_file_name_entry(self):
         global experiment_name
@@ -204,15 +189,14 @@ class GUI:
             counter+=1
 
     def save_image(self):
-        ret = False
-        if self.captured_frame is not None:
-            frame = self.captured_frame
-            ret = True
+        global captimg
+        frame = captimg
         global experiment_name
         global counter
         today = date.today()
+
         curr_date = today.strftime("%y%m%d")
-        if ret:        
+        if frame != "":
             global file_name
             user = getpass.getuser()
             if platform.system() == "Windows":
@@ -224,7 +208,8 @@ class GUI:
                 default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
                 self.file_name_entry.insert(0, default_file_name)
             file_name = self.file_name_entry.get()
-            cv2.imwrite(os.path.join(filePath, file_name), frame)
+            fullFilePath = os.path.join(filePath, file_name)
+            frame.save(fullFilePath)
             print(f"Captured image saved as {file_name} at {filePath}")
             self.label_name.configure(text=f"{file_name} at {filePath}")
 
@@ -245,7 +230,7 @@ class GUI:
         user = self.user_entry.get() #pi
         password = self.pass_entry.get() #nanotube
         local_ip = socket.gethostname()
-        self.stream = self.connect_to_raspberry_pi(ip,user,password,local_ip)
+        self.stream = self.connect_to_raspberry_pi(ip,user,password)
 
     def close(self):
         self.running = False
@@ -262,7 +247,7 @@ class GUI:
         self.root.destroy()        
 
     
-    def connect_to_raspberry_pi(self, ip, user, password, local_ip):
+    def connect_to_raspberry_pi(self, ip, user, password):
         global shutter_speed
         global iso
         
@@ -275,25 +260,29 @@ class GUI:
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             self.ssh_client.connect(ip, username=user, password=password)
             print("Connected to Raspberry Pi")
-            self.start_raspberry_pi_camera_stream(ip, local_ip, user, password)
+            self.start_raspberry_pi_camera_stream(ip, user, password)
         except Exception as e:
             print(f"Failed to connect to Raspberry Pi: {e}")
 
-    def start_raspberry_pi_camera_stream(self, ip, local_ip, user, password):
+    def start_raspberry_pi_camera_stream(self, ip, user, password):
         self.running = True
         self.video_label.configure(width=400, height=400)
 
         try:
+            print("Inside try func")
+            ssh_command = f"sudo fuser -k /dev/video0"
+            self.ssh_client.exec_command(ssh_command)
+            print("Removed prior cams")
             ssh_command = f"python3 /home/pi/stream2.py 200.10.10.1"
-            stdin, stdout, stderr = self.ssh_client.exec_command(ssh_command)
-            print(stdout.read().decode())
-            print(stderr.read().decode())
+            print('sent command')
+            self.ssh_client.exec_command(ssh_command)
             print("Executed Command")
         except Exception as e:
             print(f"Failed to start streaming script on Raspberry Pi: {e}")
         Thread(target=self.update_raspberry_pi_frame).start()
 
     def update_raspberry_pi_frame(self):
+        global imgtk
         # Set up UDP socket to receive the stream
         udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_socket.bind(('', 8000))
@@ -304,7 +293,7 @@ class GUI:
                 data, _ = udp_socket.recvfrom(65536)
                 # Convert the data to a Pillow image
                 image = Image.open(io.BytesIO(data))
-
+                self.captimg = image
                 if image is not None:
                     # Convert the frame to ImageTk format
                     imgtk = ImageTk.PhotoImage(image=image)
