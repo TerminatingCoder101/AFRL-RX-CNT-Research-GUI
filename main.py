@@ -4,7 +4,7 @@ import cv2
 from PIL import Image, ImageTk
 import paramiko
 import threading
-from threading import Thread
+from threading import Thread, Event
 from datetime import date
 import os
 import getpass
@@ -35,6 +35,8 @@ class GUI:
         self.root.configure(background='light blue')
         self.root.resizable(height=True, width=True)
         self.root.title("RX GUI Control")
+        self.update_thread = None
+        self.stop_event = Event()
 
         # ROOT
         self.root.grid_rowconfigure(0, weight=1)
@@ -230,22 +232,7 @@ class GUI:
         user = self.user_entry.get() #pi
         password = self.pass_entry.get() #nanotube
         local_ip = socket.gethostname()
-        self.stream = self.connect_to_raspberry_pi(ip,user,password)
-
-    def close(self):
-        self.running = False
-        if self.cap:
-            self.cap.release()
-        if self.ssh_client:
-            self.ssh_client.close()
-        if self.video_thread:
-            self.video_thread.join()
-       # if self.fft_thread:
-       #     self.fft_thread.join()    
-       # if self.fft_app:
-        #   self.fft_app.stop()
-        self.root.destroy()        
-
+        self.stream = self.connect_to_raspberry_pi(ip,user,password)   
     
     def connect_to_raspberry_pi(self, ip, user, password):
         global shutter_speed
@@ -267,7 +254,7 @@ class GUI:
     def start_raspberry_pi_camera_stream(self, ip, user, password):
         self.running = True
         self.video_label.configure(width=400, height=400)
-
+        self.stop_event.clear()
         try:
             print("Inside try func")
             ssh_command = f"sudo fuser -k /dev/video0"
@@ -279,7 +266,8 @@ class GUI:
             print("Executed Command")
         except Exception as e:
             print(f"Failed to start streaming script on Raspberry Pi: {e}")
-        Thread(target=self.update_raspberry_pi_frame).start()
+        self.update_thread = Thread(target=self.update_raspberry_pi_frame)
+        self.update_thread.start()
 
     def update_raspberry_pi_frame(self):
         global imgtk
@@ -303,6 +291,29 @@ class GUI:
             except Exception as e:
                 print(f"Failed to update frame from Raspberry Pi Camera: {e}")
                 break
+
+    def stop_streaming(self):
+        self.running = False
+        self.stop_event.set()
+        if self.update_thread is not None:
+            self.update_thread.join()
+            self.update_thread = None
+
+    def close(self):
+        if self.running:
+            self.running = False
+            self.stop_streaming()
+        if self.cap:
+            self.cap.release()
+        if self.ssh_client:
+            self.ssh_client.close()
+        if self.video_thread:
+            self.video_thread.join()     
+       # if self.fft_thread:
+       #     self.fft_thread.join()    
+       # if self.fft_app:
+        #   self.fft_app.stop()
+        self.root.destroy()     
 
 class FFTApp:
 
