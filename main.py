@@ -22,7 +22,6 @@ shutter_speed = 0
 iso = 0
 experiment_name = "Hi"
 folder_path = "Downloads/AFRL_RX_GUI"
-imgtk = ""
 captimg = ""
 
 class GUI:
@@ -133,7 +132,6 @@ class GUI:
         self.running = False
         self.captured_frame = None
 
-
     ################################### MANUAL CAMERA ##################################
 
     def start_preview(self):  # For manual use only
@@ -166,14 +164,13 @@ class GUI:
             self.root.after(10, self.update_frame)
 
     def capture_image(self):
-        global captimg
-        global imgtk
         if self.running:
             self.video_capt_label.configure(width=400, height=400)
             self.populate_file_name_entry()
-            self.video_capt_label.imgtk = imgtk
-            self.video_capt_label.configure(image=imgtk)
-            captimg = imgtk
+            self.captimgtk = ImageTk.PhotoImage(self.captimg)
+            self.video_capt_label.imgtk = self.captimgtk
+            self.video_capt_label.configure(image=self.captimgtk)
+            self.save_new_image = self.captimgtk
 
     def populate_file_name_entry(self):
         global experiment_name
@@ -191,11 +188,12 @@ class GUI:
             counter+=1
 
     def save_image(self):
-        global captimg
-        frame = captimg
+        frame_temp = self.save_new_image
         global experiment_name
         global counter
         today = date.today()
+
+        frame = ImageTk.getimage(frame_temp) #Convert ImageTK back to PIL
 
         curr_date = today.strftime("%y%m%d")
         if frame != "":
@@ -205,6 +203,9 @@ class GUI:
                 filePath = f"C:/{user}/{folder_path}"
             elif platform.system() == "Darwin":
                 filePath = f"/Users/{user}/{folder_path}"
+
+            if not os.path.exists(filePath):
+                os.makedirs(filePath)
 
             if not self.file_name_entry.get():
                 default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
@@ -228,11 +229,11 @@ class GUI:
     def connect_to_raspberry_pi_helper(self):
         global shutter_speed
         global iso
-        ip = self.ip_entry.get() #200.10.10.2
-        user = self.user_entry.get() #pi
-        password = self.pass_entry.get() #nanotube
+        self.ip = self.ip_entry.get() #200.10.10.2
+        self.user = self.user_entry.get() #pi
+        self.password = self.pass_entry.get() #nanotube
         local_ip = socket.gethostname()
-        self.stream = self.connect_to_raspberry_pi(ip,user,password)   
+        self.stream = self.connect_to_raspberry_pi(self.ip,self.user,self.password)   
     
     def connect_to_raspberry_pi(self, ip, user, password):
         global shutter_speed
@@ -251,58 +252,61 @@ class GUI:
         except Exception as e:
             print(f"Failed to connect to Raspberry Pi: {e}")
 
+    ################################### RPI CAMERA ##################################    
+
     def start_raspberry_pi_camera_stream(self, ip, user, password):
         self.running = True
         self.video_label.configure(width=400, height=400)
         self.stop_event.clear()
         try:
-            print("Inside try func")
             ssh_command = f"sudo fuser -k /dev/video0"
             self.ssh_client.exec_command(ssh_command)
             print("Removed prior cams")
             ssh_command = f"python3 /home/pi/stream2.py 200.10.10.1"
-            print('sent command')
             self.ssh_client.exec_command(ssh_command)
-            print("Executed Command")
+            print("Executed Stream Command")
         except Exception as e:
             print(f"Failed to start streaming script on Raspberry Pi: {e}")
-        self.update_thread = Thread(target=self.update_raspberry_pi_frame)
-        self.update_thread.start()
+        # self.update_thread = Thread(target=self.update_raspberry_pi_frame)
+        # self.update_thread.start()
+        self.setup_udp_socket()
+        self.update_raspberry_pi_frame()
+
+    def setup_udp_socket(self):
+        self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp_socket.settimeout(1)  # Set a timeout of 1 second
+        self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
+        self.udp_socket.bind(('', 8000))
+        print("Socket setup complete")
 
     def update_raspberry_pi_frame(self):
-        global imgtk
-        # Set up UDP socket to receive the stream
-        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_socket.bind(('', 8000))
-        print("Binded")
-        while self.running:
-            try:
-                # Receive data from the socket
-                data, _ = udp_socket.recvfrom(65536)
-                # Convert the data to a Pillow image
-                image = Image.open(io.BytesIO(data))
-                self.captimg = image
-                if image is not None:
-                    # Convert the frame to ImageTk format
-                    imgtk = ImageTk.PhotoImage(image=image)
-                    self.video_label.imgtk = imgtk
-                    self.video_label.configure(image=imgtk)
-
-            except Exception as e:
-                print(f"Failed to update frame from Raspberry Pi Camera: {e}")
-                break
-
-    def stop_streaming(self):
-        self.running = False
-        self.stop_event.set()
-        if self.update_thread is not None:
-            self.update_thread.join()
-            self.update_thread = None
+        def update_frame():
+            if self.running:
+                try:
+                    # Receive data from the socket
+                    data, _ = self.udp_socket.recvfrom(65536)
+                    # Convert the data to a Pillow image
+                    image = Image.open(io.BytesIO(data))
+                    self.captimg = image
+                    if image is not None:
+                        # Convert the frame to ImageTk format
+                        imgtk = ImageTk.PhotoImage(image=image)
+                        self.video_label.imgtk = imgtk
+                        self.video_label.configure(image=imgtk)
+                except Exception as e:
+                    print(f"Failed to update frame from Raspberry Pi Camera: {e} -- Trying again.")
+                    self.running = False
+                # Call the function again after a short delay
+                self.video_label.after(10, update_frame)
+            else:
+                self.start_raspberry_pi_camera_stream(self.ip, self.user,self.password)
+        # Start the frame update loop
+        update_frame()
 
     def close(self):
         if self.running:
             self.running = False
-            self.stop_streaming()
+            self.stop_event.set()
         if self.cap:
             self.cap.release()
         if self.ssh_client:
