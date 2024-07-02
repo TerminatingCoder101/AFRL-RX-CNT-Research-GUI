@@ -15,7 +15,7 @@ import subprocess
 import socket
 import io
 
-
+# Some necessary globals :)
 counter = 1
 file_name = ""
 shutter_speed = 0
@@ -163,7 +163,7 @@ class GUI:
                 print("Failed to read frame")
             self.root.after(10, self.update_frame)
 
-    def capture_image(self):
+    def capture_image(self): # Capturing an image and saving it in a new var.
         if self.running:
             self.video_capt_label.configure(width=400, height=400)
             self.populate_file_name_entry()
@@ -172,7 +172,7 @@ class GUI:
             self.video_capt_label.configure(image=self.captimgtk)
             self.save_new_image = self.captimgtk
 
-    def populate_file_name_entry(self):
+    def populate_file_name_entry(self): # Populating the file name label/entry
         global experiment_name
         global counter
         today = date.today()
@@ -182,7 +182,7 @@ class GUI:
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
             counter+=1
         else:
-            default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
+            default_file_name = f"{curr_date}_{counter}_{experiment_name}.png" 
             self.file_name_entry.delete(0, tk.END)  # Clear existing content
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
             counter+=1
@@ -204,7 +204,7 @@ class GUI:
             elif platform.system() == "Darwin":
                 filePath = f"/Users/{user}/{folder_path}"
 
-            if not os.path.exists(filePath):
+            if not os.path.exists(filePath): # Make directory if it doesn't exist
                 os.makedirs(filePath)
 
             if not self.file_name_entry.get():
@@ -213,7 +213,7 @@ class GUI:
             file_name = self.file_name_entry.get()
             fullFilePath = os.path.join(filePath, file_name)
             frame.save(fullFilePath)
-            print(f"Captured image saved as {file_name} at {filePath}")
+            print(f"Captured image saved as {file_name} at {filePath}") # Log captured image in serial output
             self.label_name.configure(text=f"{file_name} at {filePath}")
 
     def save_iso_ss(self):
@@ -232,7 +232,6 @@ class GUI:
         self.ip = self.ip_entry.get() #200.10.10.2
         self.user = self.user_entry.get() #pi
         self.password = self.pass_entry.get() #nanotube
-        local_ip = socket.gethostname()
         self.stream = self.connect_to_raspberry_pi(self.ip,self.user,self.password)   
     
     def connect_to_raspberry_pi(self, ip, user, password):
@@ -267,10 +266,8 @@ class GUI:
             print("Executed Stream Command")
         except Exception as e:
             print(f"Failed to start streaming script on Raspberry Pi: {e}")
-        # self.update_thread = Thread(target=self.update_raspberry_pi_frame)
-        # self.update_thread.start()
-        self.setup_udp_socket()
-        self.update_raspberry_pi_frame()
+        self.setup_udp_socket() # Set up sockets
+        self.update_raspberry_pi_frame() # Start raspberry pi frame streams
 
     def setup_udp_socket(self):
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -283,13 +280,10 @@ class GUI:
         def update_frame():
             if self.running:
                 try:
-                    # Receive data from the socket
                     data, _ = self.udp_socket.recvfrom(65536)
-                    # Convert the data to a Pillow image
                     image = Image.open(io.BytesIO(data))
                     self.captimg = image
                     if image is not None:
-                        # Convert the frame to ImageTk format
                         imgtk = ImageTk.PhotoImage(image=image)
                         self.video_label.imgtk = imgtk
                         self.video_label.configure(image=imgtk)
@@ -298,30 +292,15 @@ class GUI:
                 except Exception as e:
                     print(f"Failed to update frame from Raspberry Pi Camera: {e} -- Trying again.")
                     self.running = False
-                # Call the function again after a short delay
-                self.video_label.after(10, update_frame)
+                self.video_label.after(10, update_frame) # If it doesn't work try again.
             else:
                 self.start_raspberry_pi_camera_stream(self.ip, self.user,self.password)
-        # Start the frame update loop
-        update_frame()
+                # If the entire stream disconnects, restart the stream and connections
+        update_frame() # Start loop
 
-    def close(self):
-        if self.running:
-            self.running = False
-            self.stop_event.set()
-        if self.cap:
-            self.cap.release()
-        if self.ssh_client:
-            self.ssh_client.close()
-        if self.video_thread:
-            self.video_thread.join()     
-       # if self.fft_thread:
-       #     self.fft_thread.join()    
-       # if self.fft_app:
-        #   self.fft_app.stop()
-        self.root.destroy()     
+    ################################### FFT FUNCTION ####################################
 
-    def perform_fft(self, image):
+    def perform_fft(self, image): # FFT Function 
         if image is not None:
 
             gray_image = ImageOps.grayscale(image)
@@ -343,6 +322,18 @@ class GUI:
         else:
             print("No image captured to apply FFT.")
             self.update_frame()
+
+    def close(self): # Close all threads / roots
+        if self.running:
+            self.running = False
+            self.stop_event.set()
+        if self.cap:
+            self.cap.release()
+        if self.ssh_client:
+            self.ssh_client.close()
+        if self.video_thread:
+            self.video_thread.join()     
+        self.root.destroy()     
 
 if __name__ == "__main__":
     root = tk.Tk()
