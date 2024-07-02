@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import cv2
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageOps
 import paramiko
 import threading
 from threading import Thread, Event
@@ -14,6 +14,7 @@ import time
 import subprocess
 import socket
 import io
+import queue
 
 
 counter = 1
@@ -53,7 +54,6 @@ class GUI:
         self.video_thread = None
 
         # FILE AND INFO
-
         self.label_frame = ttk.LabelFrame(root, text="Info")
         self.label_frame.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
         self.label_frame.grid_rowconfigure(5, weight=1)
@@ -126,13 +126,17 @@ class GUI:
         self.fft_label = tk.Label(self.fft_frame, bg="black", fg="white")
         self.fft_label.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         
-        # RUN
+        # Initializations
         self.cap = None
         self.ssh_client = None
         self.running = False
         self.captured_frame = None
+        self.image_queue = queue.Queue()
+        self.fft_app = FFTApp(self.fft_label)
+        self.fft_thread = threading.Thread(target=self.run_fft_thread)
+        self.fft_thread.start()
 
-    ################################### MANUAL CAMERA ##################################
+    ################################### MANUAL CAMERA ###################################
 
     def start_preview(self):  # For manual use only
         self.running = True
@@ -141,14 +145,8 @@ class GUI:
             print("Failed to open camera")
             return
         self.video_label.configure(width=400, height=400)
-        
-       # self.fft_app = FFTApp(self.cap, self.fft_label)
-        
         self.video_thread = Thread(target=self.update_frame)
-        #self.fft_thread = Thread(target=self.fft_app.start)
-        
         self.video_thread.start()
-        #self.fft_thread.start()
 
     def update_frame(self):  # For manual use only
         if self.running:
@@ -162,6 +160,8 @@ class GUI:
             else:
                 print("Failed to read frame")
             self.root.after(10, self.update_frame)
+
+    ############################### IMAGE TRANSMISSIONS #################################
 
     def capture_image(self):
         if self.running:
@@ -224,7 +224,7 @@ class GUI:
         print(f"Shutter Speed saved: {shutter_speed}")
         print(f"ISO saved: {iso}")
 
-    ################################### RPI SETUP ##################################        
+    ################################### RPI SETUP #######################################        
     
     def connect_to_raspberry_pi_helper(self):
         global shutter_speed
@@ -252,7 +252,7 @@ class GUI:
         except Exception as e:
             print(f"Failed to connect to Raspberry Pi: {e}")
 
-    ################################### RPI CAMERA ##################################    
+    ################################### RPI CAMERA ######################################    
 
     def start_raspberry_pi_camera_stream(self, ip, user, password):
         self.running = True
@@ -267,8 +267,7 @@ class GUI:
             print("Executed Stream Command")
         except Exception as e:
             print(f"Failed to start streaming script on Raspberry Pi: {e}")
-        # self.update_thread = Thread(target=self.update_raspberry_pi_frame)
-        # self.update_thread.start()
+
         self.setup_udp_socket()
         self.update_raspberry_pi_frame()
 
@@ -280,28 +279,29 @@ class GUI:
         print("Socket setup complete")
 
     def update_raspberry_pi_frame(self):
-        def update_frame():
-            if self.running:
-                try:
-                    # Receive data from the socket
-                    data, _ = self.udp_socket.recvfrom(65536)
-                    # Convert the data to a Pillow image
-                    image = Image.open(io.BytesIO(data))
-                    self.captimg = image
-                    if image is not None:
-                        # Convert the frame to ImageTk format
-                        imgtk = ImageTk.PhotoImage(image=image)
-                        self.video_label.imgtk = imgtk
-                        self.video_label.configure(image=imgtk)
-                except Exception as e:
-                    print(f"Failed to update frame from Raspberry Pi Camera: {e} -- Trying again.")
-                    self.running = False
-                # Call the function again after a short delay
-                self.video_label.after(10, update_frame)
-            else:
-                self.start_raspberry_pi_camera_stream(self.ip, self.user,self.password)
-        # Start the frame update loop
-        update_frame()
+
+        if self.running:
+            try:
+                # Receive data from the socket
+                data, _ = self.udp_socket.recvfrom(65536)
+                # Convert the data to a Pillow image
+                image = Image.open(io.BytesIO(data))
+                self.captimg = image
+
+                if image is not None:
+                    # Convert the frame to ImageTk format
+                    imgtk = ImageTk.PhotoImage(image=image)
+                    self.video_label.imgtk = imgtk
+                    self.video_label.configure(image=imgtk)
+                    self.image_queue.put(image)
+
+            except Exception as e:
+                print(f"Failed to update frame from Raspberry Pi Camera: {e} -- Trying again.")
+                self.running = False
+            # Call the function again after a short delay
+            self.video_label.after(10, self.update_raspberry_pi_frame())
+        else:
+            self.start_raspberry_pi_camera_stream(self.ip, self.user,self.password)
 
     def close(self):
         if self.running:
@@ -311,39 +311,39 @@ class GUI:
             self.cap.release()
         if self.ssh_client:
             self.ssh_client.close()
-        if self.video_thread:
-            self.video_thread.join()     
-       # if self.fft_thread:
-       #     self.fft_thread.join()    
-       # if self.fft_app:
-        #   self.fft_app.stop()
+        # if self.video_thread:
+        #     self.video_thread.join()  
+        if self.fft_thread:
+            self.fft_app.stop()
+            self.fft_thread.join()   
+        if self.udp_socket:
+            self.udp_socket.close()
         self.root.destroy()     
 
+####################################### FFT Methods #######################################
+
+    def run_fft_thread(self):
+        while not self.stop_event.is_set():
+            try:
+                image = self.image_queue.get(timeout = 2000)
+                if image is not None:
+                    self.fft_app.perform_fft(image)
+                self.image_queue.task_done()
+            except queue.Empty:
+                continue
+
 class FFTApp:
-
-    def __init__(self, cap, fft_label):
-        self.cap = cap
+    def __init__(self, fft_label):
         self.fft_label = fft_label
-        self.running = False
 
-    def start(self):  # This should run in a separate thread
-        self.running = True
-        while self.running:
-            self.apply_fft()
+    def perform_fft(self, image):
+        if image is not None:
 
-    def stop(self):
-        self.running = False
+            gray_image = ImageOps.grayscale(image)
 
-    def apply_fft(self):
-        if self.cap.isOpened():
-            ret, frame = self.cap.read()
-            if not ret:
-                print("Failed to capture image")
-                self.stop()
-                return
+            img_array = np.array(gray_image)
 
-            gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            dft = cv2.dft(np.float32(gray_image), flags=cv2.DFT_COMPLEX_OUTPUT)
+            dft = cv2.dft(np.float32(img_array), flags=cv2.DFT_COMPLEX_OUTPUT)
             dft_shift = np.fft.fftshift(dft)
             magnitude_spectrum = 20 * np.log(cv2.magnitude(dft_shift[:, :, 0], dft_shift[:, :, 1]))
 
@@ -351,12 +351,16 @@ class FFTApp:
             magnitude_spectrum = np.uint8(magnitude_spectrum)
             img = Image.fromarray(magnitude_spectrum)
             imgtk = ImageTk.PhotoImage(image=img)
+            print("FFT Created")
             self.fft_label.configure(width=400, height=400)
             self.fft_label.imgtk = imgtk
             self.fft_label.configure(image=imgtk)
         else:
             print("No image captured to apply FFT.")
-        self.fft_label.after(10, self.apply_fft())
+            self.fft_label.after(10, self.perform_fft())
+
+    def stop(self):
+        self.running = False
 
 
 if __name__ == "__main__":
