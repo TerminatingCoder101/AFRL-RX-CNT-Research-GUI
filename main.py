@@ -55,7 +55,7 @@ class GUI:
 
         self.label_frame = ttk.LabelFrame(root, text="Info")
         self.label_frame.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
-        self.label_frame.grid_rowconfigure(5, weight=1)
+        self.label_frame.grid_rowconfigure(4, weight=1)
         self.label_frame.grid_columnconfigure(0, weight=1)
         self.label_user = tk.Label(self.label_frame, text=f"User: {user1}")
         self.label_user.grid(row=0, column=0, pady=10, padx=10, sticky="nsew")
@@ -71,7 +71,7 @@ class GUI:
         # IMAGE CONTROL
         self.control_frame = ttk.LabelFrame(root, text="Image Control")
         self.control_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
-        self.control_frame.grid_rowconfigure(3, weight=1)
+        self.control_frame.grid_rowconfigure(4, weight=1)
         self.control_frame.grid_columnconfigure(1, weight=1)
         self.preview_button = tk.Button(self.control_frame, text="Preview", command=self.start_preview)
         self.preview_button.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
@@ -118,13 +118,16 @@ class GUI:
         self.video_capt_label.configure(width=30)
 
         # FFT CONTROL
+        self.fft_var = tk.BooleanVar()
+        self.fft_var.set(False)  # Set the initial state to unchecked
         self.fft_frame = ttk.LabelFrame(root, text="FFT Control")
         self.fft_frame.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
         self.fft_frame.grid_rowconfigure(0, weight=1)
         self.fft_frame.grid_columnconfigure(0, weight=1)
-        self.fft_label = tk.Label(self.fft_frame, bg="black", fg="white")
-        self.fft_label.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
-        
+        self.fft_checkbox = tk.Checkbutton(self.fft_frame, text="Show FFT", variable=self.fft_var, command=self.toggle_fft_display)
+        self.fft_checkbox.grid(row=0,padx=5, pady=5, sticky="nsew")
+
+
         # RUN
         self.cap = None
         self.ssh_client = None
@@ -281,8 +284,8 @@ class GUI:
                         imgtk = ImageTk.PhotoImage(image=image)
                         self.video_label.imgtk = imgtk
                         self.video_label.configure(image=imgtk)
-
-                        self.perform_fft(image)
+                        if self.fft_var.get():
+                            self.perform_fft(image)
                 except Exception as e:
                     print(f"Failed to update frame from Raspberry Pi Camera: {e} -- Trying again.")
                     self.running = False
@@ -292,7 +295,18 @@ class GUI:
                 # If the entire stream disconnects, restart the stream and connections
         update_frame() # Start loop
 
-    ################################### FFT FUNCTION ####################################
+    ################################### FFT Methods ####################################
+
+    def toggle_fft_display(self):
+        if self.fft_var.get():
+            self.fft_frame.grid_rowconfigure(1, weight=1)
+            self.fft_label = tk.Label(self.fft_frame, bg="black", fg="white")
+            self.fft_label.grid(row=0, padx=5, pady=5, sticky="nsew")
+            self.fft_checkbox.grid(row=1, padx=5, pady=5, sticky="nsew")
+        else:
+            self.fft_frame.grid_rowconfigure(0, weight=1)
+            self.fft_label.destroy()
+            self.fft_checkbox.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
     def perform_fft(self, image): # FFT Function 
         if image is not None:
@@ -310,7 +324,10 @@ class GUI:
             img = Image.fromarray(magnitude_spectrum)
             imgtk = ImageTk.PhotoImage(image=img)
 
-            self.fft_label.configure(width=400, height=400)
+            self.fft_frame.grid_rowconfigure(1, weight=1)
+            self.fft_label.grid(row=0, padx=5, pady=5, sticky="nsew")
+            self.fft_checkbox.grid(row=1, padx=5, pady=5, sticky="nsew")
+            self.fft_label.configure(width=400, height=250)
             self.fft_label.imgtk = imgtk
             self.fft_label.configure(image=imgtk)
         else:
