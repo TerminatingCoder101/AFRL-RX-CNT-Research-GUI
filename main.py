@@ -20,8 +20,8 @@ counter = 1
 file_name = ""
 shutter_speed = 0
 iso = 0
-experiment_name = "Test"
-folder_path = "Downloads/AFRL_RX_GUI"
+experiment_name = ""
+folder_path = ""
 captimg = ""
 
 class GUI:
@@ -55,18 +55,23 @@ class GUI:
 
         self.label_frame = ttk.LabelFrame(root, text="Info")
         self.label_frame.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
-        self.label_frame.grid_rowconfigure(4, weight=1)
+        self.label_frame.grid_rowconfigure(6, weight=1)
         self.label_frame.grid_columnconfigure(0, weight=1)
         self.label_user = tk.Label(self.label_frame, text=f"User: {user1}")
         self.label_user.grid(row=0, column=0, pady=10, padx=10, sticky="nsew")
         self.label_system = tk.Label(self.label_frame, text=f"System: {system1}")
         self.label_system.grid(row=1, column=0, pady=10, padx=10, sticky="nsew")
-        self.label_name = tk.Label(self.label_frame, text="")
-        self.label_name.grid(row=3, column=0, pady=10, padx=10, sticky="nsew")
+        self.experiment_entry = tk.Entry(self.label_frame)
+        self.experiment_entry.grid(row=2, column=0, pady=10, padx=10, sticky="nsew")
+        self.add_placeholder(self.experiment_entry, "Experiment Name")
+        self.folder_path_entry = tk.Entry(self.label_frame)
+        self.folder_path_entry.grid(row=3, column=0, pady=10, padx=10, sticky="nsew")
+        self.add_placeholder(self.folder_path_entry, "Folder Path")
         self.file_name_entry = tk.Entry(self.label_frame)
-        self.file_name_entry.grid(row=2, column=0, pady=10, padx=10, sticky="nsew")
+        self.file_name_entry.grid(row=4, column=0, pady=10, padx=10, sticky="nsew")
         self.save_button2 = tk.Button(self.label_frame, text="Save", command=self.save_image)
-        self.save_button2.grid(row=3, column=0, padx=5, pady=5, sticky="nsew")
+        self.save_button2.grid(row=5, column=0, padx=5, pady=10, sticky="nsew")
+
 
         # IMAGE CONTROL
         self.control_frame = ttk.LabelFrame(root, text="Image Control")
@@ -160,9 +165,30 @@ class GUI:
                 print("Failed to read frame")
             self.root.after(10, self.update_frame)
 
+    ################################### IMAGE PROCESSING ##################################
+
+    def add_placeholder(self, entry, placeholder):
+        entry.insert(0, placeholder)
+        entry.bind("<FocusIn>", lambda event: self.clear_placeholder(event, placeholder))
+        entry.bind("<FocusOut>", lambda event: self.set_placeholder(event, placeholder))
+
+    def clear_placeholder(self, event, placeholder):
+        entry = event.widget
+        if entry.get() == placeholder:
+            entry.delete(0, tk.END)
+            entry.config(fg="black")
+
+    def set_placeholder(self, event, placeholder):
+        entry = event.widget
+        if entry.get() == "":
+            entry.insert(0, placeholder)
+            entry.config(fg="grey")
+
     def capture_image(self): # Capturing an image and saving it in a new var.
         if self.running:
             self.video_capt_label.configure(width=400, height=400)
+            self.populate_exp_name_entry()
+            self.populate_folder_path_entry()
             self.populate_file_name_entry()
             self.captimgtk = ImageTk.PhotoImage(self.captimg)
             self.video_capt_label.imgtk = self.captimgtk
@@ -183,6 +209,14 @@ class GUI:
             self.file_name_entry.delete(0, tk.END)  # Clear existing content
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
             counter+=1
+
+    def populate_exp_name_entry(self):
+        global experiment_name
+        experiment_name = self.experiment_entry.get()
+
+    def populate_folder_path_entry(self):
+        global folder_path
+        folder_path = self.folder_path_entry.get()
 
     def save_image(self):
         frame_temp = self.save_new_image
