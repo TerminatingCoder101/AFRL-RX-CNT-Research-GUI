@@ -251,6 +251,8 @@ class GUI:
     ################################### RPI CAMERA ##################################    
 
     def start_raspberry_pi_camera_stream(self, ip, user, password):
+        global shutter_speed
+        global iso
         self.running = True
         self.video_label.configure(width=400, height=400)
         self.stop_event.clear()
@@ -258,7 +260,7 @@ class GUI:
             ssh_command = f"sudo fuser -k /dev/video0"
             self.ssh_client.exec_command(ssh_command)
             print("Removed prior cams")
-            ssh_command = f"python3 /home/pi/stream2.py 200.10.10.1"
+            ssh_command = f"python3 /home/pi/stream.py 200.10.10.1 {shutter_speed} {iso}"
             self.ssh_client.exec_command(ssh_command)
             print("Executed Stream Command")
         except Exception as e:
