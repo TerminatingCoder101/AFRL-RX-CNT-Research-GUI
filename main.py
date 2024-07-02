@@ -14,14 +14,13 @@ import time
 import subprocess
 import socket
 import io
-import queue
 
-
+# Some necessary globals :)
 counter = 1
 file_name = ""
 shutter_speed = 0
 iso = 0
-experiment_name = "Hi"
+experiment_name = "Test"
 folder_path = "Downloads/AFRL_RX_GUI"
 captimg = ""
 
@@ -54,6 +53,7 @@ class GUI:
         self.video_thread = None
 
         # FILE AND INFO
+
         self.label_frame = ttk.LabelFrame(root, text="Info")
         self.label_frame.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
         self.label_frame.grid_rowconfigure(5, weight=1)
@@ -126,17 +126,13 @@ class GUI:
         self.fft_label = tk.Label(self.fft_frame, bg="black", fg="white")
         self.fft_label.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         
-        # Initializations
+        # RUN
         self.cap = None
         self.ssh_client = None
         self.running = False
         self.captured_frame = None
-        self.image_queue = queue.Queue()
-        self.fft_app = FFTApp(self.fft_label)
-        self.fft_thread = threading.Thread(target=self.run_fft_thread)
-        self.fft_thread.start()
 
-    ################################### MANUAL CAMERA ###################################
+    ################################### MANUAL CAMERA ##################################
 
     def start_preview(self):  # For manual use only
         self.running = True
@@ -145,8 +141,14 @@ class GUI:
             print("Failed to open camera")
             return
         self.video_label.configure(width=400, height=400)
+        
+       # self.fft_app = FFTApp(self.cap, self.fft_label)
+        
         self.video_thread = Thread(target=self.update_frame)
+        #self.fft_thread = Thread(target=self.fft_app.start)
+        
         self.video_thread.start()
+        #self.fft_thread.start()
 
     def update_frame(self):  # For manual use only
         if self.running:
@@ -161,9 +163,7 @@ class GUI:
                 print("Failed to read frame")
             self.root.after(10, self.update_frame)
 
-    ############################### IMAGE TRANSMISSIONS #################################
-
-    def capture_image(self):
+    def capture_image(self): # Capturing an image and saving it in a new var.
         if self.running:
             self.video_capt_label.configure(width=400, height=400)
             self.populate_file_name_entry()
@@ -172,7 +172,7 @@ class GUI:
             self.video_capt_label.configure(image=self.captimgtk)
             self.save_new_image = self.captimgtk
 
-    def populate_file_name_entry(self):
+    def populate_file_name_entry(self): # Populating the file name label/entry
         global experiment_name
         global counter
         today = date.today()
@@ -182,7 +182,7 @@ class GUI:
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
             counter+=1
         else:
-            default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
+            default_file_name = f"{curr_date}_{counter}_{experiment_name}.png" 
             self.file_name_entry.delete(0, tk.END)  # Clear existing content
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
             counter+=1
@@ -204,7 +204,7 @@ class GUI:
             elif platform.system() == "Darwin":
                 filePath = f"/Users/{user}/{folder_path}"
 
-            if not os.path.exists(filePath):
+            if not os.path.exists(filePath): # Make directory if it doesn't exist
                 os.makedirs(filePath)
 
             if not self.file_name_entry.get():
@@ -213,7 +213,7 @@ class GUI:
             file_name = self.file_name_entry.get()
             fullFilePath = os.path.join(filePath, file_name)
             frame.save(fullFilePath)
-            print(f"Captured image saved as {file_name} at {filePath}")
+            print(f"Captured image saved as {file_name} at {filePath}") # Log captured image in serial output
             self.label_name.configure(text=f"{file_name} at {filePath}")
 
     def save_iso_ss(self):
@@ -224,7 +224,7 @@ class GUI:
         print(f"Shutter Speed saved: {shutter_speed}")
         print(f"ISO saved: {iso}")
 
-    ################################### RPI SETUP #######################################        
+    ################################### RPI SETUP ##################################        
     
     def connect_to_raspberry_pi_helper(self):
         global shutter_speed
@@ -232,7 +232,6 @@ class GUI:
         self.ip = self.ip_entry.get() #200.10.10.2
         self.user = self.user_entry.get() #pi
         self.password = self.pass_entry.get() #nanotube
-        local_ip = socket.gethostname()
         self.stream = self.connect_to_raspberry_pi(self.ip,self.user,self.password)   
     
     def connect_to_raspberry_pi(self, ip, user, password):
@@ -252,7 +251,7 @@ class GUI:
         except Exception as e:
             print(f"Failed to connect to Raspberry Pi: {e}")
 
-    ################################### RPI CAMERA ######################################    
+    ################################### RPI CAMERA ##################################    
 
     def start_raspberry_pi_camera_stream(self, ip, user, password):
         self.running = True
@@ -267,9 +266,8 @@ class GUI:
             print("Executed Stream Command")
         except Exception as e:
             print(f"Failed to start streaming script on Raspberry Pi: {e}")
-
-        self.setup_udp_socket()
-        self.update_raspberry_pi_frame()
+        self.setup_udp_socket() # Set up sockets
+        self.update_raspberry_pi_frame() # Start raspberry pi frame streams
 
     def setup_udp_socket(self):
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -279,64 +277,30 @@ class GUI:
         print("Socket setup complete")
 
     def update_raspberry_pi_frame(self):
+        def update_frame():
+            if self.running:
+                try:
+                    data, _ = self.udp_socket.recvfrom(65536)
+                    image = Image.open(io.BytesIO(data))
+                    self.captimg = image
+                    if image is not None:
+                        imgtk = ImageTk.PhotoImage(image=image)
+                        self.video_label.imgtk = imgtk
+                        self.video_label.configure(image=imgtk)
 
-        if self.running:
-            try:
-                # Receive data from the socket
-                data, _ = self.udp_socket.recvfrom(65536)
-                # Convert the data to a Pillow image
-                image = Image.open(io.BytesIO(data))
-                self.captimg = image
+                        self.perform_fft(image)
+                except Exception as e:
+                    print(f"Failed to update frame from Raspberry Pi Camera: {e} -- Trying again.")
+                    self.running = False
+                self.video_label.after(10, update_frame) # If it doesn't work try again.
+            else:
+                self.start_raspberry_pi_camera_stream(self.ip, self.user,self.password)
+                # If the entire stream disconnects, restart the stream and connections
+        update_frame() # Start loop
 
-                if image is not None:
-                    # Convert the frame to ImageTk format
-                    imgtk = ImageTk.PhotoImage(image=image)
-                    self.video_label.imgtk = imgtk
-                    self.video_label.configure(image=imgtk)
-                    self.image_queue.put(image)
+    ################################### FFT FUNCTION ####################################
 
-            except Exception as e:
-                print(f"Failed to update frame from Raspberry Pi Camera: {e} -- Trying again.")
-                self.running = False
-            # Call the function again after a short delay
-            self.video_label.after(10, self.update_raspberry_pi_frame())
-        else:
-            self.start_raspberry_pi_camera_stream(self.ip, self.user,self.password)
-
-    def close(self):
-        if self.running:
-            self.running = False
-            self.stop_event.set()
-        if self.cap:
-            self.cap.release()
-        if self.ssh_client:
-            self.ssh_client.close()
-        # if self.video_thread:
-        #     self.video_thread.join()  
-        if self.fft_thread:
-            self.fft_app.stop()
-            self.fft_thread.join()   
-        if self.udp_socket:
-            self.udp_socket.close()
-        self.root.destroy()     
-
-####################################### FFT Methods #######################################
-
-    def run_fft_thread(self):
-        while not self.stop_event.is_set():
-            try:
-                image = self.image_queue.get(timeout = 2000)
-                if image is not None:
-                    self.fft_app.perform_fft(image)
-                self.image_queue.task_done()
-            except queue.Empty:
-                continue
-
-class FFTApp:
-    def __init__(self, fft_label):
-        self.fft_label = fft_label
-
-    def perform_fft(self, image):
+    def perform_fft(self, image): # FFT Function 
         if image is not None:
 
             gray_image = ImageOps.grayscale(image)
@@ -351,17 +315,25 @@ class FFTApp:
             magnitude_spectrum = np.uint8(magnitude_spectrum)
             img = Image.fromarray(magnitude_spectrum)
             imgtk = ImageTk.PhotoImage(image=img)
-            print("FFT Created")
+
             self.fft_label.configure(width=400, height=400)
             self.fft_label.imgtk = imgtk
             self.fft_label.configure(image=imgtk)
         else:
             print("No image captured to apply FFT.")
-            self.fft_label.after(10, self.perform_fft())
+            self.update_frame()
 
-    def stop(self):
-        self.running = False
-
+    def close(self): # Close all threads / roots
+        if self.running:
+            self.running = False
+            self.stop_event.set()
+        if self.cap:
+            self.cap.release()
+        if self.ssh_client:
+            self.ssh_client.close()
+        if self.video_thread:
+            self.video_thread.join()     
+        self.root.destroy()     
 
 if __name__ == "__main__":
     root = tk.Tk()
