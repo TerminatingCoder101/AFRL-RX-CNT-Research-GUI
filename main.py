@@ -34,7 +34,6 @@ class GUI:
         self.root.configure(background='light blue')
         self.root.resizable(height=True, width=True)
         self.root.title("RX GUI Control")
-        self.update_thread = None
         self.stop_event = Event()
 
         # ROOT
@@ -141,14 +140,9 @@ class GUI:
             print("Failed to open camera")
             return
         self.video_label.configure(width=400, height=400)
-        
-       # self.fft_app = FFTApp(self.cap, self.fft_label)
-        
+
         self.video_thread = Thread(target=self.update_frame)
-        #self.fft_thread = Thread(target=self.fft_app.start)
-        
         self.video_thread.start()
-        #self.fft_thread.start()
 
     def update_frame(self):  # For manual use only
         if self.running:
