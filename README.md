@@ -11,5 +11,5 @@ Dependencies (On RPi):
 - PiCamera 2
 - Libcamera
 
-Must have ethernet connection to network (200.10.10.1 (host) & 200.10.10.2 (RPi)
+Must have ethernet connection to network (200.10.10.1 (host) & 200.10.10.2 (RPi))
   
