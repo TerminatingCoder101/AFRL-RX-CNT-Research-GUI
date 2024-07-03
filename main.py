@@ -363,7 +363,7 @@ class GUI:
             self.fft_frame.grid_rowconfigure(1, weight=1)
             self.fft_label.grid(row=0, padx=5, pady=5, sticky="nsew")
             self.fft_checkbox.grid(row=1, padx=5, pady=5, sticky="nsew")
-            self.fft_label.configure(width=400, height=250)
+            self.fft_label.configure(width=400, height=200)
             self.fft_label.imgtk = imgtk
             self.fft_label.configure(image=imgtk)
         else:
