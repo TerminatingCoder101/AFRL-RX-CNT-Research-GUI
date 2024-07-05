@@ -278,13 +278,13 @@ class GUI:
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             self.ssh_client.connect(ip, username=user, password=password)
             print("Connected to Raspberry Pi")
-            self.start_raspberry_pi_camera_stream(ip, user, password)
+            self.start_raspberry_pi_camera_stream()
         except Exception as e:
             print(f"Failed to connect to Raspberry Pi: {e}")
 
     ################################### RPI CAMERA ##################################    
 
-    def start_raspberry_pi_camera_stream(self, ip, user, password):
+    def start_raspberry_pi_camera_stream(self):
         global shutter_speed
         global iso
         self.running = True
@@ -327,7 +327,7 @@ class GUI:
                     self.running = False
                 self.video_label.after(10, update_frame) # If it doesn't work try again.
             else:
-                self.start_raspberry_pi_camera_stream(self.ip, self.user,self.password)
+                self.start_raspberry_pi_camera_stream()
                 # If the entire stream disconnects, restart the stream and connections
         update_frame() # Start loop
 
