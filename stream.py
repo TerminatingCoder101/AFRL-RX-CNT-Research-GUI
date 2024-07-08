@@ -15,7 +15,7 @@ def start_stream(ip_addr, shutter_speed, iso_value):
         controls = {
             "ExposureTime": shutter_speed1,  # in microseconds
             "AnalogueGain": ag,
-            "Brightness": 0.2,             
+            "Brightness": 0.4,             
             "Saturation": 0,   
             "Sharpness": 0,       
             "AwbEnable": False,
@@ -38,6 +38,8 @@ def start_stream(ip_addr, shutter_speed, iso_value):
         while True:
             buffer = io.BytesIO()
             picam2.capture_file(buffer, format='jpeg')
+            metadata = picam2.capture_metadata()
+            print(metadata)
             buffer.seek(0)
             client_socket.sendto(buffer.read(), (ip_addr, 8000))
             print("Frame sent")
