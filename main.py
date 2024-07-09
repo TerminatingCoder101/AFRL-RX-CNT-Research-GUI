@@ -52,10 +52,9 @@ class GUI:
         self.video_thread = None
 
         # FILE AND INFO
-
         self.label_frame = ttk.LabelFrame(root, text="Info")
         self.label_frame.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
-        self.label_frame.grid_rowconfigure(6, weight=1)
+        self.label_frame.grid_rowconfigure(7, weight=1)
         self.label_frame.grid_columnconfigure(0, weight=1)
         self.label_user = tk.Label(self.label_frame, text=f"User: {user1}")
         self.label_user.grid(row=0, column=0, pady=10, padx=10, sticky="nsew")
@@ -64,14 +63,15 @@ class GUI:
         self.experiment_entry = tk.Entry(self.label_frame)
         self.experiment_entry.grid(row=2, column=0, pady=10, padx=10, sticky="nsew")
         self.add_placeholder(self.experiment_entry, "Experiment Name")
+        self.counter_entry = tk.Entry(self.label_frame)
+        self.counter_entry.grid(row=3, column=0, pady=10, padx=10, sticky="nsew")
         self.folder_path_entry = tk.Entry(self.label_frame)
-        self.folder_path_entry.grid(row=3, column=0, pady=10, padx=10, sticky="nsew")
+        self.folder_path_entry.grid(row=4, column=0, pady=10, padx=10, sticky="nsew")
         self.add_placeholder(self.folder_path_entry, "Folder Path")
         self.file_name_entry = tk.Entry(self.label_frame)
-        self.file_name_entry.grid(row=4, column=0, pady=10, padx=10, sticky="nsew")
+        self.file_name_entry.grid(row=5, column=0, pady=10, padx=10, sticky="nsew")
         self.save_button2 = tk.Button(self.label_frame, text="Save", command=self.save_image)
-        self.save_button2.grid(row=5, column=0, padx=5, pady=10, sticky="nsew")
-
+        self.save_button2.grid(row=6, column=0, padx=5, pady=10, sticky="nsew")
 
         # IMAGE CONTROL
         self.control_frame = ttk.LabelFrame(root, text="Image Control")
@@ -86,10 +86,12 @@ class GUI:
         self.iso_label.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
         self.iso_entry = tk.Entry(self.control_frame)
         self.iso_entry.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
+        self.add_placeholder(self.iso_entry, "100")
         self.ss_label = tk.Label(self.control_frame, text="SS:")
         self.ss_label.grid(row=2, column=0, padx=5, pady=5, sticky="nsew")
         self.ss_entry = tk.Entry(self.control_frame)
         self.ss_entry.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
+        self.add_placeholder(self.ss_entry, "100")
         self.save_button1 = tk.Button(self.control_frame, text="Save", command=self.save_iso_ss)
         self.save_button1.grid(row=3, column=1, padx=5, pady=5, sticky="nsew")
 
@@ -102,14 +104,17 @@ class GUI:
         self.ip_label.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         self.ip_entry = tk.Entry(self.connection_frame)
         self.ip_entry.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
+        self.add_placeholder(self.ip_entry, "200.10.10.2")
         self.user_label = tk.Label(self.connection_frame, text="User:")
         self.user_label.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
         self.user_entry = tk.Entry(self.connection_frame)
         self.user_entry.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
+        self.add_placeholder(self.user_entry, "pi")
         self.pass_label = tk.Label(self.connection_frame, text="Pass:")
         self.pass_label.grid(row=2, column=0, padx=5, pady=5, sticky="nsew")
         self.pass_entry = tk.Entry(self.connection_frame, show="*")
         self.pass_entry.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
+        self.add_placeholder(self.pass_entry, "nanotube")
         self.connect_button = tk.Button(self.connection_frame, text='Connect', command=self.connect_to_raspberry_pi_helper)
         self.connect_button.grid(row=3, column=1, padx=5, pady=5, sticky="nsew")
 
@@ -132,12 +137,13 @@ class GUI:
         self.fft_checkbox = tk.Checkbutton(self.fft_frame, text="Show FFT", variable=self.fft_var, command=self.toggle_fft_display)
         self.fft_checkbox.grid(row=0,padx=5, pady=5, sticky="nsew")
 
-
         # RUN
         self.cap = None
         self.ssh_client = None
         self.running = False
         self.captured_frame = None
+        self.scp = True
+        self.counter_entry.insert(0, f"{counter}")
 
     ################################### MANUAL CAMERA ##################################
 
@@ -189,6 +195,7 @@ class GUI:
             self.video_capt_label.configure(width=400, height=400)
             self.populate_exp_name_entry()
             self.populate_folder_path_entry()
+            self.populate_counter_entry()
             self.populate_file_name_entry()
             self.captimgtk = ImageTk.PhotoImage(self.captimg)
             self.video_capt_label.imgtk = self.captimgtk
@@ -198,36 +205,53 @@ class GUI:
     def populate_file_name_entry(self): # Populating the file name label/entry
         global experiment_name
         global counter
+
         today = date.today()
         curr_date = today.strftime("%y%m%d")
         if not self.file_name_entry.get():
             default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
+            self.counter_entry.delete(0, tk.END)
             counter+=1
+            self.counter_entry.insert(0,counter)
         else:
             default_file_name = f"{curr_date}_{counter}_{experiment_name}.png" 
             self.file_name_entry.delete(0, tk.END)  # Clear existing content
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
+            self.counter_entry.delete(0,tk.END)
             counter+=1
+            self.counter_entry.insert(0,counter)
 
     def populate_exp_name_entry(self):
         global experiment_name
         experiment_name = self.experiment_entry.get()
 
+    def populate_counter_entry(self):
+        global counter
+        counter = int(self.counter_entry.get())
+
     def populate_folder_path_entry(self):
         global folder_path
         folder_path = self.folder_path_entry.get()
 
+    def retrieve_file_via_scp(self, remote_file_path, local_file_path):
+        try:
+            print("Inside SCP try")
+            self.scp = self.ssh_client.open_sftp()
+            self.scp.get(remote_file_path, local_file_path)
+            print(f"File {remote_file_path} retrieved and saved as {local_file_path}")
+            self.scp.close()
+        except Exception as e:
+            print(f"Error: {e}")
+
     def save_image(self):
-        frame_temp = self.save_new_image
         global experiment_name
         global counter
         today = date.today()
 
-        frame = ImageTk.getimage(frame_temp) #Convert ImageTK back to PIL
-
         curr_date = today.strftime("%y%m%d")
-        if frame != "":
+        if self.scp is not False:
+
             global file_name
             user = getpass.getuser()
             if platform.system() == "Windows":
@@ -241,11 +265,14 @@ class GUI:
             if not self.file_name_entry.get():
                 default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
                 self.file_name_entry.insert(0, default_file_name)
+
             file_name = self.file_name_entry.get()
             fullFilePath = os.path.join(filePath, file_name)
-            frame.save(fullFilePath)
+            self.retrieve_file_via_scp('/home/pi/AFRL_RX_GUI/temp_rpicam_img.png', fullFilePath)
             print(f"Captured image saved as {file_name} at {filePath}") # Log captured image in serial output
-            self.label_name.configure(text=f"{file_name} at {filePath}")
+
+        else:
+            print("Error: SCP client not initialized")
 
     def save_iso_ss(self):
         global shutter_speed
@@ -294,7 +321,7 @@ class GUI:
             ssh_command = f"sudo fuser -k /dev/video0"
             self.ssh_client.exec_command(ssh_command)
             print("Removed prior cams")
-            ssh_command = f"python3 /home/pi/stream.py 200.10.10.1 {shutter_speed} {iso}"
+            ssh_command = f"python3 /home/pi/testcam.py 200.10.10.1 {shutter_speed} {iso}"
             self.ssh_client.exec_command(ssh_command)
             print("Executed Stream Command")
         except Exception as e:
@@ -304,7 +331,7 @@ class GUI:
 
     def setup_udp_socket(self):
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp_socket.settimeout(1)  # Set a timeout of 1 second
+        self.udp_socket.settimeout(1.5)  # Set a timeout of 1 second
         self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
         self.udp_socket.bind(('', 8000))
         print("Socket setup complete")
