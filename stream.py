@@ -16,12 +16,12 @@ def start_stream(ip_addr, shutter_speed, iso_value):
         controls = {
             "ExposureTime": shutter_speed1,  # in microseconds
             "AnalogueGain": ag,
-            "Brightness": 0.4,             
-            "Saturation": 0,   
-            "Sharpness": 0,       
+            #"Brightness": 0.4,             
+            #"Saturation": 0,   
+            #"Sharpness": 0,       
             "AwbEnable": False,
             "AwbMode": controls.AwbModeEnum.Custom,
-            "ColourGains": (3.4795,1.1079),
+            #"ColourGains": (3.4795,1.1079),
             "AeMeteringMode": controls.AeMeteringModeEnum.CentreWeighted
         }
     )
