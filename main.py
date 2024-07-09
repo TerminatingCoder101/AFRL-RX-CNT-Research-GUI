@@ -321,7 +321,7 @@ class GUI:
             ssh_command = f"sudo fuser -k /dev/video0"
             self.ssh_client.exec_command(ssh_command)
             print("Removed prior cams")
-            ssh_command = f"python3 /home/pi/testcam.py 200.10.10.1 {shutter_speed} {iso}"
+            ssh_command = f"python3 /home/pi/stream.py 200.10.10.1 {shutter_speed} {iso}"
             self.ssh_client.exec_command(ssh_command)
             print("Executed Stream Command")
         except Exception as e:
