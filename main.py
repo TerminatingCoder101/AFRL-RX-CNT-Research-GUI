@@ -53,23 +53,23 @@ class GUI:
 
         # FILE AND INFO
         self.label_frame = ttk.LabelFrame(root, text="Info")
-        self.label_frame.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
+        self.label_frame.grid(row=2, column=1, padx=10, pady=5, sticky="nsew")
         self.label_frame.grid_rowconfigure(7, weight=1)
         self.label_frame.grid_columnconfigure(0, weight=1)
         self.label_user = tk.Label(self.label_frame, text=f"User: {user1}")
-        self.label_user.grid(row=0, column=0, pady=10, padx=10, sticky="nsew")
+        self.label_user.grid(row=0, column=0, pady=5, padx=10, sticky="nsew")
         self.label_system = tk.Label(self.label_frame, text=f"System: {system1}")
-        self.label_system.grid(row=1, column=0, pady=10, padx=10, sticky="nsew")
+        self.label_system.grid(row=1, column=0, pady=5, padx=10, sticky="nsew")
         self.experiment_entry = tk.Entry(self.label_frame)
-        self.experiment_entry.grid(row=2, column=0, pady=10, padx=10, sticky="nsew")
+        self.experiment_entry.grid(row=2, column=0, pady=5, padx=10, sticky="nsew")
         self.add_placeholder(self.experiment_entry, "Experiment Name")
         self.counter_entry = tk.Entry(self.label_frame)
-        self.counter_entry.grid(row=3, column=0, pady=10, padx=10, sticky="nsew")
+        self.counter_entry.grid(row=3, column=0, pady=5, padx=10, sticky="nsew")
         self.folder_path_entry = tk.Entry(self.label_frame)
-        self.folder_path_entry.grid(row=4, column=0, pady=10, padx=10, sticky="nsew")
+        self.folder_path_entry.grid(row=4, column=0, pady=5, padx=10, sticky="nsew")
         self.add_placeholder(self.folder_path_entry, "Folder Path")
         self.file_name_entry = tk.Entry(self.label_frame)
-        self.file_name_entry.grid(row=5, column=0, pady=10, padx=10, sticky="nsew")
+        self.file_name_entry.grid(row=5, column=0, pady=5, padx=10, sticky="nsew")
         self.save_button2 = tk.Button(self.label_frame, text="Save", command=self.save_image)
         self.save_button2.grid(row=6, column=0, padx=5, pady=10, sticky="nsew")
 
@@ -236,7 +236,6 @@ class GUI:
 
     def retrieve_file_via_scp(self, remote_file_path, local_file_path):
         try:
-            print("Inside SCP try")
             self.scp = self.ssh_client.open_sftp()
             self.scp.get(remote_file_path, local_file_path)
             print(f"File {remote_file_path} retrieved and saved as {local_file_path}")
@@ -267,8 +266,15 @@ class GUI:
                 self.file_name_entry.insert(0, default_file_name)
 
             file_name = self.file_name_entry.get()
+            temp_file_name = file_name[:-4] + ".npy"
+            temp_full_file = os.path.join(filePath, temp_file_name)
             fullFilePath = os.path.join(filePath, file_name)
-            self.retrieve_file_via_scp('/home/pi/AFRL_RX_GUI/temp_rpicam_img.png', fullFilePath)
+            self.retrieve_file_via_scp('/home/pi/AFRL_RX_GUI/temp_rpicam_img.npy', temp_full_file)
+            arr = np.load(temp_full_file)
+            im = Image.fromarray(arr)
+            im.save(fullFilePath)
+            print("Saved image")
+            os.remove(temp_full_file)
             print(f"Captured image saved as {file_name} at {filePath}") # Log captured image in serial output
 
         else:
@@ -390,7 +396,7 @@ class GUI:
             self.fft_frame.grid_rowconfigure(1, weight=1)
             self.fft_label.grid(row=0, padx=5, pady=5, sticky="nsew")
             self.fft_checkbox.grid(row=1, padx=5, pady=5, sticky="nsew")
-            self.fft_label.configure(width=400, height=200)
+            self.fft_label.configure(width=400, height=180)
             self.fft_label.imgtk = imgtk
             self.fft_label.configure(image=imgtk)
         else:

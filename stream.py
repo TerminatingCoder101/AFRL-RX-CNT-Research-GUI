@@ -1,6 +1,7 @@
 from picamera2 import Picamera2
 from libcamera import controls
 from PIL import Image
+import numpy as np
 import socket
 import time
 import io
@@ -10,9 +11,9 @@ def start_stream(ip_addr, shutter_speed, iso_value):
     picam2 = Picamera2()
     iso_value1 = int(iso_value)
     shutter_speed1 = int(shutter_speed)
-    ag = (iso_value1 / 100) * 2.317
+    ag = (iso_value1 / 100)
     config = picam2.create_video_configuration(
-        main={"size": (1920, 1080)},
+        main={"size": (1080, 1080)},
         controls = {
             "ExposureTime": shutter_speed1,  # in microseconds
             "AnalogueGain": ag,
@@ -35,12 +36,13 @@ def start_stream(ip_addr, shutter_speed, iso_value):
 
     print("Starting camera stream...")
     time_delay = 0
+    local_image_path = '/home/pi/AFRL_RX_GUI/temp_rpicam_img.npy'
     try:
         while True:
             buffer = io.BytesIO()
             picam2.capture_file(buffer, format='jpeg')
             buffer.seek(0)
-            image_data = buffer.read()
+            #image_data = buffer.read()
             image = Image.open(buffer)
             resized_image = image.resize((400, 400), Image.LANCZOS)
             resized_buffer = io.BytesIO()
@@ -48,11 +50,11 @@ def start_stream(ip_addr, shutter_speed, iso_value):
             resized_buffer.seek(0)
 
             if time_delay < 5:
-                # Save the image locally
-                local_image_path = '/home/pi/AFRL_RX_GUI/temp_rpicam_img.png'
-                with open(local_image_path, 'wb') as f:
-                    f.write(image_data)
+                request = picam2.capture_request()
+                img_arr = request.make_array("main")
+                np.save(local_image_path, img_arr)
                 print("HD Image captured and saved locally")
+                request.release()
                 time_delay+=1
             else:
                 time_delay = 0
