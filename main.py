@@ -1,7 +1,13 @@
+### ADD IN 0000 FOR SAVING NUMBERS
+### ADD IN PNG CONFIG STUFF
+### ADD IN METADATA FOR TIMESTAMP
+### ADD IN READ ONLY FOR IMAGES
+
+
 import tkinter as tk
 from tkinter import ttk
 import cv2
-from PIL import Image, ImageTk, ImageOps
+from PIL import Image, ImageTk, ImageOps, PngImagePlugin
 import paramiko
 import threading
 from threading import Thread, Event
@@ -14,14 +20,15 @@ import time
 import subprocess
 import socket
 import io
+import piexif
 
 # Some necessary globals :)
 counter = 1
 file_name = ""
 shutter_speed = 0
 iso = 0
-experiment_name = ""
-folder_path = ""
+experiment_name = "Test100"
+folder_path = "Downloads/AFRL_RX_GUI"
 captimg = ""
 
 class GUI:
@@ -62,12 +69,12 @@ class GUI:
         self.label_system.grid(row=1, column=0, pady=5, padx=10, sticky="nsew")
         self.experiment_entry = tk.Entry(self.label_frame)
         self.experiment_entry.grid(row=2, column=0, pady=5, padx=10, sticky="nsew")
-        self.add_placeholder(self.experiment_entry, "Experiment Name")
+        self.add_placeholder(self.experiment_entry, "Test100")
         self.counter_entry = tk.Entry(self.label_frame)
         self.counter_entry.grid(row=3, column=0, pady=5, padx=10, sticky="nsew")
         self.folder_path_entry = tk.Entry(self.label_frame)
         self.folder_path_entry.grid(row=4, column=0, pady=5, padx=10, sticky="nsew")
-        self.add_placeholder(self.folder_path_entry, "Folder Path")
+        self.add_placeholder(self.folder_path_entry, "Downloads/AFRL_RX_GUI")
         self.file_name_entry = tk.Entry(self.label_frame)
         self.file_name_entry.grid(row=5, column=0, pady=5, padx=10, sticky="nsew")
         self.save_button2 = tk.Button(self.label_frame, text="Save", command=self.save_image)
@@ -144,6 +151,8 @@ class GUI:
         self.captured_frame = None
         self.scp = True
         self.counter_entry.insert(0, f"{counter}")
+        self.fullFilePath = ""
+        self.filePath = ""
 
     ################################### MANUAL CAMERA ##################################
 
@@ -200,7 +209,8 @@ class GUI:
             self.captimgtk = ImageTk.PhotoImage(self.captimg)
             self.video_capt_label.imgtk = self.captimgtk
             self.video_capt_label.configure(image=self.captimgtk)
-            self.save_new_image = self.captimgtk
+            self.captimg.save(self.filePath + "smallimg.png")
+
 
     def populate_file_name_entry(self): # Populating the file name label/entry
         global experiment_name
@@ -254,28 +264,34 @@ class GUI:
             global file_name
             user = getpass.getuser()
             if platform.system() == "Windows":
-                filePath = f"C:/{user}/{folder_path}"
+                self.filePath = f"C:/{user}/{folder_path}"
             elif platform.system() == "Darwin":
-                filePath = f"/Users/{user}/{folder_path}"
+                self.filePath = f"/Users/{user}/{folder_path}"
 
-            if not os.path.exists(filePath): # Make directory if it doesn't exist
-                os.makedirs(filePath)
+            if not os.path.exists(self.filePath): # Make directory if it doesn't exist
+                os.makedirs(self.filePath)
 
             if not self.file_name_entry.get():
                 default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
                 self.file_name_entry.insert(0, default_file_name)
 
             file_name = self.file_name_entry.get()
-            temp_file_name = file_name[:-4] + ".npy"
-            temp_full_file = os.path.join(filePath, temp_file_name)
-            fullFilePath = os.path.join(filePath, file_name)
-            self.retrieve_file_via_scp('/home/pi/AFRL_RX_GUI/temp_rpicam_img.npy', temp_full_file)
-            arr = np.load(temp_full_file)
-            im = Image.fromarray(arr)
-            im.save(fullFilePath)
+            temp_file_name = file_name[:-4] + ".npz"
+            temp_full_file = os.path.join(self.filePath, temp_file_name)
+            self.fullFilePath = os.path.join(self.filePath, file_name)
+            self.retrieve_file_via_scp('/home/pi/AFRL_RX_GUI/temp_rpicam_img.npz', temp_full_file)
+            arr = np.load(temp_full_file, allow_pickle=True)
+            metadata = arr['y']
+            metadata = metadata.item()
+            exif_data = PngImagePlugin.PngInfo()
+            for key in metadata:
+                # print(key, str(metadata[key]))
+                exif_data.add_text(key, str(metadata[key]))
+            im = Image.fromarray(arr['x'])
+            im.save(self.fullFilePath, pnginfo = exif_data)
             print("Saved image")
             os.remove(temp_full_file)
-            print(f"Captured image saved as {file_name} at {filePath}") # Log captured image in serial output
+            print(f"Captured image saved as {file_name} at {self.filePath}") # Log captured image in serial output
 
         else:
             print("Error: SCP client not initialized")

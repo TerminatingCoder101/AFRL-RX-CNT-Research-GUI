@@ -11,7 +11,7 @@ def start_stream(ip_addr, shutter_speed, iso_value):
     picam2 = Picamera2()
     iso_value1 = int(iso_value)
     shutter_speed1 = int(shutter_speed)
-    ag = (iso_value1 / 100)
+    ag = 2 * (iso_value1 / 100)
     config = picam2.create_video_configuration(
         main={"size": (1080, 1080)},
         controls = {
@@ -22,7 +22,7 @@ def start_stream(ip_addr, shutter_speed, iso_value):
             #"Sharpness": 0,       
             "AwbEnable": False,
             "AwbMode": controls.AwbModeEnum.Custom,
-            #"ColourGains": (3.4795,1.1079),
+            "ColourGains": (3.4795,1.1079),
             "AeMeteringMode": controls.AeMeteringModeEnum.CentreWeighted
         }
     )
@@ -36,7 +36,7 @@ def start_stream(ip_addr, shutter_speed, iso_value):
 
     print("Starting camera stream...")
     time_delay = 0
-    local_image_path = '/home/pi/AFRL_RX_GUI/temp_rpicam_img.npy'
+    local_image_path = '/home/pi/AFRL_RX_GUI/temp_rpicam_img.npz'
     try:
         while True:
             buffer = io.BytesIO()
@@ -52,7 +52,9 @@ def start_stream(ip_addr, shutter_speed, iso_value):
             if time_delay < 5:
                 request = picam2.capture_request()
                 img_arr = request.make_array("main")
-                np.save(local_image_path, img_arr)
+                metadata = request.get_metadata()
+                met_arr = np.array(metadata)
+                np.savez(local_image_path, x=img_arr, y = met_arr)
                 print("HD Image captured and saved locally")
                 request.release()
                 time_delay+=1
