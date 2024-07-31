@@ -1,26 +1,21 @@
-### ADD IN 0000 FOR SAVING NUMBERS
-### ADD IN PNG CONFIG STUFF
-### ADD IN METADATA FOR TIMESTAMP
-### ADD IN READ ONLY FOR IMAGES
-
+'''
+@author: Sagar Shah -- AFRL Summer Intern
+'''
 
 import tkinter as tk
 from tkinter import ttk
 import cv2
 from PIL import Image, ImageTk, ImageOps, PngImagePlugin
 import paramiko
-import threading
+
 from threading import Thread, Event
-from datetime import date
+from datetime import date, datetime
 import os
 import getpass
 import platform
 import numpy as np
-import time
-import subprocess
 import socket
 import io
-import piexif
 
 # Some necessary globals :)
 counter = 1
@@ -150,7 +145,7 @@ class GUI:
         self.running = False
         self.captured_frame = None
         self.scp = True
-        self.counter_entry.insert(0, f"{counter}")
+        self.counter_entry.insert(0, f"{counter:03d}")
         self.fullFilePath = ""
         self.filePath = ""
 
@@ -219,13 +214,13 @@ class GUI:
         today = date.today()
         curr_date = today.strftime("%y%m%d")
         if not self.file_name_entry.get():
-            default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
+            default_file_name = f"{curr_date}_{counter:03d}_{experiment_name}.png"
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
             self.counter_entry.delete(0, tk.END)
             counter+=1
             self.counter_entry.insert(0,counter)
         else:
-            default_file_name = f"{curr_date}_{counter}_{experiment_name}.png" 
+            default_file_name = f"{curr_date}_{counter:03d}_{experiment_name}.png" 
             self.file_name_entry.delete(0, tk.END)  # Clear existing content
             self.file_name_entry.insert(0, default_file_name)  # Insert default file name
             self.counter_entry.delete(0,tk.END)
@@ -264,7 +259,7 @@ class GUI:
             global file_name
             user = getpass.getuser()
             if platform.system() == "Windows":
-                self.filePath = f"C:/{user}/{folder_path}"
+                self.filePath = f"C:/Users/{user}/{folder_path}"
             elif platform.system() == "Darwin":
                 self.filePath = f"/Users/{user}/{folder_path}"
 
@@ -272,7 +267,7 @@ class GUI:
                 os.makedirs(self.filePath)
 
             if not self.file_name_entry.get():
-                default_file_name = f"{curr_date}_{counter}_{experiment_name}.png"
+                default_file_name = f"{curr_date}_{counter:03d}_{experiment_name}.png"
                 self.file_name_entry.insert(0, default_file_name)
 
             file_name = self.file_name_entry.get()
@@ -287,8 +282,11 @@ class GUI:
             for key in metadata:
                 # print(key, str(metadata[key]))
                 exif_data.add_text(key, str(metadata[key]))
+            metadata["DateTime"] = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
+            print(metadata)
             im = Image.fromarray(arr['x'])
             im.save(self.fullFilePath, pnginfo = exif_data)
+            arr.close()
             print("Saved image")
             os.remove(temp_full_file)
             print(f"Captured image saved as {file_name} at {self.filePath}") # Log captured image in serial output
